@@ -1,4 +1,4 @@
-﻿let initializeApp;
+let initializeApp;
 let getFirestore;
 let collection;
 let addDoc;
@@ -287,6 +287,7 @@ document.addEventListener("click", (event) => {
     saveNotes: () => saveNotes(),
     filterJob: () => { state.filters.job = value; render(); },
     clearFilters: () => { state.filters = { city: "", job: DEFAULT_JOB_FILTER, search: "" }; render(); },
+    applyFilters: () => render(),
     toggleFilter: () => { state.filterOpen = !state.filterOpen; render(); }
   };
   const result = actions[action.dataset.action]?.();
@@ -303,7 +304,6 @@ document.addEventListener("input", (event) => {
   if (el.name === "notes") state.notes = el.value;
   if (el.name?.startsWith("requestNote:")) updateRequestNoteDraft(el.name.replace("requestNote:", ""), el.value);
   if (el.closest("#register-form")) state.register.data[el.name] = el.type === "checkbox" ? el.checked : el.value;
-  if (state.screen === "home") render();
 });
 
 document.addEventListener("submit", (event) => event.preventDefault());
@@ -333,11 +333,11 @@ async function init() {
 function startSyncInterval() {
   clearInterval(syncInterval);
   syncInterval = setInterval(async () => {
-    if (state.blocked || state.screen === "welcome" || !firebaseReady) return;
+    if (state.blocked || state.screen === "welcome" || state.screen === "register" || !firebaseReady) return;
     await syncUsers({ silent: true });
     if (state.user?.role === "pro") await syncRequests();
     render();
-  }, 20000);
+  }, 10000);
 }
 
 async function syncThenRender() {
@@ -580,8 +580,8 @@ async function login() {
     toast("أهلا بعودتك");
     setScreen("home");
     return true;
-  } catch (error) {
-    return showError("فشل تعذر الدخول من Firebase.", error);
+  } catch {
+    return fail("الحساب غير موجود, أنشئه الآن!");
   }
 }
 
@@ -596,6 +596,7 @@ async function nextRegister() {
   const d = state.register.data;
   d.username = String(d.username || "").trim();
   if (!d.username || !d.password) return fail("يرجى ملء جميع الحقول المطلوبة.");
+  if (!/^[a-zA-Z0-9_]+$/.test(d.username)) return fail("اسم المستخدم يجب أن يكون بالحروف اللاتينية والأرقام فقط.");
   if (d.password.length < 6) return fail("كلمة المرور يجب أن تحتوي على 6 أحرف على الأقل.");
   if (!(await initFirebase())) return false;
   const adminCreds = await getAdminCredsFirebase();
@@ -626,6 +627,7 @@ async function saveRegister() {
   const role = state.register.role;
   if (!role) return fail("حساب");
   if (!d.fullName || !d.phone || !d.city) return fail("لم يتم ملء المعلومات الضرورية.");
+  if (!/^[\u0600-\u06FF\s]+$/.test(d.fullName)) return fail("الإسم الكامل يجب أن يكون بالعربية فقط.");
   if (!CITIES.includes(d.city)) return fail("يجب اختيار مدينة من القائمة.");
 
   if (role === "client") {
@@ -790,13 +792,14 @@ function homePage() {
         <div class="field"><select name="cityFilter" onchange="__setCity(this.value)"><option value="">كل المدن</option>${CITIES.map(c => `<option ${state.filters.city === c ? "selected" : ""}>${c}</option>`).join("")}</select></div>
         <div class="field"><select onchange="window.__setJob(this.value)">${[DEFAULT_JOB_FILTER, ...JOBS].map(j => `<option ${state.filters.job === j ? "selected" : ""}>${j}</option>`).join("")}</select></div>
         <button class="btn ghost" data-action="clearFilters" title="مسح">✕</button>
+        <button class="btn primary" data-action="applyFilters">بحث</button>
       </section>` : ""}
       <section class="grid three">${pros.length ? pros.map(proCard).join("") : `بحث`}</section>
     </main>`;
 }
 
-window.__setJob = (job) => { state.filters.job = job; render(); };
-window.__setCity = (city) => { state.filters.city = city; render(); };
+window.__setJob = (job) => { state.filters.job = job; };
+window.__setCity = (city) => { state.filters.city = city; };
 
 function proCard(pro) {
   const fav = state.favorites.includes(pro.id);
