@@ -1,4 +1,4 @@
-const CACHE_NAME = "mallem-offline-v5";
+const CACHE_NAME = "mallem-offline-v6";
 const STATIC_CACHE = ["./index.html", "./icon.png"];
 
 self.addEventListener("install", (event) => {
